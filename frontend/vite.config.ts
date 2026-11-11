@@ -8,6 +8,11 @@ export default defineConfig(({ mode }) => {
   const backendTarget = env.VITE_BACKEND_TARGET || 'http://localhost:5000';
 
   return {
+    root: path.resolve(process.cwd(), 'frontend'),
+    build: {
+      outDir: path.resolve(process.cwd(), 'frontend/dist'),
+      emptyOutDir: true,
+    },
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
@@ -17,6 +22,7 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       host: '0.0.0.0',
+      allowedHosts: true,
       proxy: {
         '/api': {
           target: backendTarget,

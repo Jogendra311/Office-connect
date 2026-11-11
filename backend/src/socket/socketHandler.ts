@@ -216,20 +216,24 @@ export class SocketHandler {
           clearTimeout(this.typingTimers.get(timerKey)!);
         }
 
-        socket.to(`conversation:${convId}`).emit('typing:update', {
+        const typingPayload = {
           conversationId: convId,
           userId,
           userName: user.name,
           isTyping: true,
-        });
+        };
+        socket.to(`conversation:${convId}`).emit('typing:update', typingPayload);
+        socket.to(`conversation:${convId}`).emit('typing', typingPayload);
 
         const timer = setTimeout(() => {
-          socket.to(`conversation:${convId}`).emit('typing:update', {
+          const stopPayload = {
             conversationId: convId,
             userId,
             userName: user.name,
             isTyping: false,
-          });
+          };
+          socket.to(`conversation:${convId}`).emit('typing:update', stopPayload);
+          socket.to(`conversation:${convId}`).emit('typing', stopPayload);
           this.typingTimers.delete(timerKey);
         }, 3000);
 
@@ -243,12 +247,52 @@ export class SocketHandler {
           clearTimeout(this.typingTimers.get(timerKey)!);
           this.typingTimers.delete(timerKey);
         }
-        socket.to(`conversation:${convId}`).emit('typing:update', {
+        const stopPayload = {
           conversationId: convId,
           userId,
           userName: user.name,
           isTyping: false,
-        });
+        };
+        socket.to(`conversation:${convId}`).emit('typing:update', stopPayload);
+        socket.to(`conversation:${convId}`).emit('typing', stopPayload);
+      });
+
+      // Generic typing event listener ({ conversationId, isTyping })
+      socket.on('typing', (payload: any) => {
+        if (!payload) return;
+        const convId = Number(payload.conversationId || payload);
+        const isTyping = payload.isTyping !== undefined ? Boolean(payload.isTyping) : true;
+        if (!db.isUserInConversation(convId, userId)) return;
+
+        const timerKey = `${convId}:${userId}`;
+        if (this.typingTimers.has(timerKey)) {
+          clearTimeout(this.typingTimers.get(timerKey)!);
+        }
+
+        const data = {
+          conversationId: convId,
+          userId,
+          userName: user.name,
+          isTyping,
+        };
+
+        socket.to(`conversation:${convId}`).emit('typing', data);
+        socket.to(`conversation:${convId}`).emit('typing:update', data);
+
+        if (isTyping) {
+          const timer = setTimeout(() => {
+            const stopData = {
+              conversationId: convId,
+              userId,
+              userName: user.name,
+              isTyping: false,
+            };
+            socket.to(`conversation:${convId}`).emit('typing', stopData);
+            socket.to(`conversation:${convId}`).emit('typing:update', stopData);
+            this.typingTimers.delete(timerKey);
+          }, 3000);
+          this.typingTimers.set(timerKey, timer);
+        }
       });
 
       // 9. Presence Subscribe

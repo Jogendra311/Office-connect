@@ -3,13 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../../app/hooks.ts';
-import { setActiveModal } from '../../features/chat/chatSlice.ts';
+import {
+  setActiveModal,
+  setActiveConversationId,
+  setTypingStatus,
+} from '../../features/chat/chatSlice.ts';
+import { socketService } from '../../services/socketClient.ts';
 import { UserAvatar } from '../common/UserAvatar.tsx';
 import type { Conversation } from '../../types/index.ts';
 import { Pin, ArrowLeft } from 'lucide-react';
-import { setActiveConversationId } from '../../features/chat/chatSlice.ts';
 
 interface ChatHeaderProps {
   conversation: Conversation;
@@ -22,11 +26,42 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 }) => {
   const dispatch = useAppDispatch();
   const presenceMap = useAppSelector((state) => state.chat.presenceMap);
+  const typingMap = useAppSelector((state) => state.chat.typingMap);
+  const currentUser = useAppSelector((state) => state.auth.user);
 
   const isDirect = conversation.type === 'direct';
   const otherUser = conversation.isDirectWithUser;
   const title = isDirect ? otherUser?.name || 'Colleague' : conversation.title;
   const avatarUrl = isDirect ? otherUser?.avatarUrl : conversation.avatarUrl;
+
+  // Listen directly for real-time 'typing' and 'typing:update' socket events
+  useEffect(() => {
+    const socket = socketService.getSocket();
+    if (!socket) return;
+
+    const handleTypingEvent = (data: {
+      conversationId: number;
+      userName: string;
+      isTyping: boolean;
+    }) => {
+      if (data && Number(data.conversationId) === Number(conversation.id)) {
+        dispatch(setTypingStatus(data));
+      }
+    };
+
+    socket.on('typing', handleTypingEvent);
+    socket.on('typing:update', handleTypingEvent);
+
+    return () => {
+      socket.off('typing', handleTypingEvent);
+      socket.off('typing:update', handleTypingEvent);
+    };
+  }, [conversation.id, dispatch]);
+
+  const currentTypers = (typingMap[conversation.id] || []).filter(
+    (name) => name && name !== currentUser?.name
+  );
+  const isTyping = currentTypers.length > 0;
 
   const currentStatus =
     isDirect && otherUser
@@ -34,6 +69,26 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       : undefined;
 
   const getSubtitle = () => {
+    if (isTyping) {
+      const typingText =
+        currentTypers.length === 1
+          ? `${currentTypers[0]} is typing...`
+          : currentTypers.length === 2
+          ? `${currentTypers[0]} and ${currentTypers[1]} are typing...`
+          : `${currentTypers[0]} and ${currentTypers.length - 1} others are typing...`;
+
+      return (
+        <span className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-semibold animate-pulse">
+          <span className="flex items-center gap-0.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:-0.3s]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:-0.15s]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce" />
+          </span>
+          <span>{typingText}</span>
+        </span>
+      );
+    }
+
     if (isDirect && otherUser) {
       if (currentStatus === 'online') {
         return <span className="text-emerald-600 dark:text-emerald-400 font-medium">Online</span>;
@@ -90,6 +145,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             {isDirect && otherUser && (
               <span className="text-[10px] px-2 py-0.5 bg-slate-200/60 dark:bg-white/[0.08] backdrop-blur-md text-slate-600 dark:text-slate-300 rounded-full font-mono font-semibold">
                 {otherUser.employeeId}
+              </span>
+            )}
+            {isTyping && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-2xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                <span>typing...</span>
               </span>
             )}
           </div>

@@ -184,6 +184,7 @@ export interface ClientToServerEvents {
   ) => void;
   'typing:start': (conversationId: number) => void;
   'typing:stop': (conversationId: number) => void;
+  'typing': (payload: { conversationId: number; isTyping: boolean }) => void;
   'presence:subscribe': (userIds: number[]) => void;
 }
 
@@ -203,6 +204,7 @@ export interface ServerToClientEvents {
     reactions: MessageReaction[];
   }) => void;
   'typing:update': (data: TypingIndicatorData) => void;
+  'typing': (data: TypingIndicatorData) => void;
   'presence:update': (data: PresenceUpdateData) => void;
   'conversation:updated': (conversation: Conversation) => void;
   'notification:new': (notification: { id: number; title: string; body: string; conversationId: number; createdAt: string }) => void;

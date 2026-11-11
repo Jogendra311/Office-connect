@@ -14,7 +14,7 @@ import type {
   AuditLog,
 } from '../../types/index.ts';
 
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || '/api/v1';
+const apiBaseUrl = '/api/v1';
 
 export const apiSlice = createApi({
   reducerPath: 'api',

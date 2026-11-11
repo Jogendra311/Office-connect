@@ -91,9 +91,9 @@ class RelationalDatabase {
     const superAdmin: DBUser = {
       id: 1,
       employeeId: 1001,
-      username: 'super',
-      name: 'Super',
-      email: 'super@office.internal',
+      username: 'sarah.connor',
+      name: 'Sarah Connor',
+      email: 'sarah.connor@office.internal',
       passwordHash: defaultHash,
       role: 'Super Admin',
       departmentId: 1,
@@ -107,6 +107,26 @@ class RelationalDatabase {
       updatedAt: new Date().toISOString(),
     };
     this.users.set(superAdmin.id, superAdmin);
+
+    const superAdminAlt: DBUser = {
+      id: 3,
+      employeeId: 1000,
+      username: 'super',
+      name: 'Super Admin',
+      email: 'super@office.internal',
+      passwordHash: defaultHash,
+      role: 'Super Admin',
+      departmentId: 1,
+      departmentName: 'Information Technology',
+      jobTitle: 'IT System Administrator',
+      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+      status: 'online',
+      lastSeen: new Date().toISOString(),
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    this.users.set(superAdminAlt.id, superAdminAlt);
 
     const employee: DBUser = {
       id: 2,
@@ -153,6 +173,13 @@ class RelationalDatabase {
       conversationId: 1,
       userId: 2,
       role: 'member',
+      joinedAt: conv1.createdAt,
+    });
+    this.conversationMembers.set(3, {
+      id: 3,
+      conversationId: 1,
+      userId: 3,
+      role: 'admin',
       joinedAt: conv1.createdAt,
     });
   }

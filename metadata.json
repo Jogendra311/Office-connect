@@ -1,0 +1,6 @@
+{
+  "name": "OfficeConnect",
+  "description": "Secure enterprise LAN messaging and collaboration platform with real-time chat, direct messaging, channels, reactions, and administrative controls.",
+  "permissions": [],
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

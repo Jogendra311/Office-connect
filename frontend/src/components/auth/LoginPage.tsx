@@ -21,6 +21,8 @@ import {
   ShieldAlert,
   Sun,
   Moon,
+  ArrowRight,
+  RotateCcw,
 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
@@ -68,8 +70,49 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const fillSuperUserCredentials = () => {
-    setUsername('sarah.connor');
+  const [activeDemoSigningIn, setActiveDemoSigningIn] = useState<string | null>(null);
+
+  const loginWithDemoAccount = async (demoUsername: string, demoPassword = 'Office123!') => {
+    setUsername(demoUsername);
+    setPassword(demoPassword);
+    setLoginError(null);
+    setActiveDemoSigningIn(demoUsername);
+    try {
+      const result = await login({
+        username: demoUsername.toLowerCase().trim(),
+        password: demoPassword,
+      }).unwrap();
+
+      if (rememberMe) {
+        localStorage.setItem('oc_saved_user', demoUsername.toLowerCase().trim());
+      } else {
+        localStorage.removeItem('oc_saved_user');
+      }
+
+      dispatch(setCredentials(result));
+      socketService.initialize(result.accessToken);
+    } catch (err: any) {
+      setLoginError(
+        err.data?.error ||
+          err.message ||
+          'Authentication failed. Please check your username and password.'
+      );
+    } finally {
+      setActiveDemoSigningIn(null);
+    }
+  };
+
+  const clearSession = () => {
+    localStorage.removeItem('oc_token');
+    localStorage.removeItem('oc_user');
+    localStorage.removeItem('oc_saved_user');
+    setUsername('');
+    setPassword('');
+    setLoginError(null);
+  };
+
+  const fillCredentials = (demoUsername: string) => {
+    setUsername(demoUsername);
     setPassword('Office123!');
     setLoginError(null);
   };
@@ -136,6 +179,81 @@ export const LoginPage: React.FC = () => {
               <span>{loginError}</span>
             </div>
           )}
+
+          {/* Top Quick Demo Login Banner */}
+          <div className="mb-5 p-3.5 rounded-2xl bg-gradient-to-br from-indigo-500/10 via-blue-500/10 to-purple-500/10 dark:bg-white/[0.04] border border-indigo-500/30 dark:border-white/15 backdrop-blur-md">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
+                One-Click Demo Sign In:
+              </span>
+              <button
+                type="button"
+                onClick={clearSession}
+                className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer"
+                title="Reset local storage and clear inputs"
+              >
+                <RotateCcw className="w-2.5 h-2.5" />
+                Reset
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={Boolean(activeDemoSigningIn) || isLoggingIn}
+                onClick={() => loginWithDemoAccount('sarah.connor')}
+                className="p-2.5 text-left rounded-xl bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 border border-indigo-500/20 dark:border-white/10 shadow-xs hover:shadow-md hover:border-indigo-500/40 active:scale-98 transition-all cursor-pointer group"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                    Sarah Connor
+                  </span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">
+                    Admin
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+                  <span>Super Admin</span>
+                  {activeDemoSigningIn === 'sarah.connor' ? (
+                    <Loader2 className="w-3 h-3 text-indigo-600 animate-spin" />
+                  ) : (
+                    <ArrowRight className="w-3 h-3 text-indigo-500 group-hover:translate-x-0.5 transition-transform" />
+                  )}
+                </div>
+              </button>
+
+              <button
+                type="button"
+                disabled={Boolean(activeDemoSigningIn) || isLoggingIn}
+                onClick={() => loginWithDemoAccount('alex.rivera')}
+                className="p-2.5 text-left rounded-xl bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-white/10 shadow-xs hover:shadow-md hover:border-blue-500/40 active:scale-98 transition-all cursor-pointer group"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    Alex Rivera
+                  </span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-teal-500/15 text-teal-700 dark:text-teal-300">
+                    Staff
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+                  <span>Software Dev</span>
+                  {activeDemoSigningIn === 'alex.rivera' ? (
+                    <Loader2 className="w-3 h-3 text-blue-600 animate-spin" />
+                  ) : (
+                    <ArrowRight className="w-3 h-3 text-blue-500 group-hover:translate-x-0.5 transition-transform" />
+                  )}
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <div className="relative flex py-1 items-center mb-3">
+            <div className="flex-grow border-t border-slate-200/60 dark:border-white/10"></div>
+            <span className="flex-shrink mx-2 text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">Or Enter Credentials</span>
+            <div className="flex-grow border-t border-slate-200/60 dark:border-white/10"></div>
+          </div>
 
           {/* Login Form */}
           <form onSubmit={handleLoginSubmit} className="space-y-4">
@@ -220,18 +338,87 @@ export const LoginPage: React.FC = () => {
             </button>
           </form>
 
-          {/* Quick Demo Fill Helper */}
-          <div className="mt-5 pt-4 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between text-xs">
-            <span className="text-slate-500 dark:text-slate-400 text-[11px] font-medium">Demo Access:</span>
-            <button
-              type="button"
-              onClick={fillSuperUserCredentials}
-              className="px-3 py-1.5 text-[11px] font-medium bg-slate-100/80 hover:bg-slate-200/80 dark:bg-white/[0.08] dark:hover:bg-white/[0.12] text-indigo-700 dark:text-indigo-300 rounded-xl border border-slate-200/70 dark:border-white/10 flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer backdrop-blur-md"
-              title="Auto-fill Super User Sarah Connor credentials"
-            >
-              <Sparkles className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-              <span>Fill Super User (sarah.connor)</span>
-            </button>
+          {/* One-Click Demo Logins */}
+          <div className="mt-5 pt-4 border-t border-slate-200/60 dark:border-white/10">
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-slate-600 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                Demo Accounts (One-Click Sign In)
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono">Password: Office123!</span>
+            </div>
+
+            <div className="space-y-2">
+              {/* Super Admin - Sarah Connor */}
+              <div className="p-2.5 rounded-2xl bg-indigo-500/5 hover:bg-indigo-500/10 dark:bg-white/[0.04] dark:hover:bg-white/[0.07] border border-indigo-500/20 dark:border-white/10 flex items-center justify-between gap-3 transition-all backdrop-blur-md">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0 shadow-sm">
+                    SC
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white truncate">Sarah Connor</span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 uppercase tracking-tight">Super Admin</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">sarah.connor · CISO</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => fillCredentials('sarah.connor')}
+                    className="px-2 py-1 text-[10px] font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                    title="Fill username & password into form"
+                  >
+                    Fill
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isLoggingIn}
+                    onClick={() => loginWithDemoAccount('sarah.connor')}
+                    className="px-3 py-1.5 text-[11px] font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl shadow-xs flex items-center gap-1 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <span>Sign In</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Employee - Alex Rivera */}
+              <div className="p-2.5 rounded-2xl bg-slate-500/5 hover:bg-slate-500/10 dark:bg-white/[0.04] dark:hover:bg-white/[0.07] border border-slate-200/80 dark:border-white/10 flex items-center justify-between gap-3 transition-all backdrop-blur-md">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-600 to-blue-500 flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0 shadow-sm">
+                    AR
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white truncate">Alex Rivera</span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/30 uppercase tracking-tight">Staff</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">alex.rivera · Engineer</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => fillCredentials('alex.rivera')}
+                    className="px-2 py-1 text-[10px] font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                    title="Fill username & password into form"
+                  >
+                    Fill
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isLoggingIn}
+                    onClick={() => loginWithDemoAccount('alex.rivera')}
+                    className="px-3 py-1.5 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 text-white rounded-xl shadow-xs flex items-center gap-1 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <span>Sign In</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Super User Provisioning Notice */}

@@ -34,8 +34,8 @@ class SocketClientService {
 
     this.currentToken = token;
 
-    const socketUrl = (import.meta.env.VITE_SOCKET_URL as string) || undefined;
-    this.socket = io(socketUrl, {
+    // Use same origin so websocket connects to current proxy host
+    this.socket = io({
       path: '/socket.io',
       auth: { token },
       transports: ['websocket', 'polling'],
@@ -106,6 +106,10 @@ class SocketClientService {
       store.dispatch(setTypingStatus(data));
     });
 
+    this.socket.on('typing', (data) => {
+      store.dispatch(setTypingStatus(data));
+    });
+
     this.socket.on('presence:update', (data) => {
       store.dispatch(updatePresence(data));
     });
@@ -113,6 +117,10 @@ class SocketClientService {
     this.socket.on('conversation:updated', () => {
       store.dispatch(apiSlice.util.invalidateTags(['Conversations']));
     });
+  }
+
+  public getSocket(): ClientSocket | null {
+    return this.socket;
   }
 
   public toggleReaction(
@@ -144,12 +152,14 @@ class SocketClientService {
   public startTyping(conversationId: number) {
     if (this.socket?.connected) {
       this.socket.emit('typing:start', conversationId);
+      this.socket.emit('typing', { conversationId, isTyping: true });
     }
   }
 
   public stopTyping(conversationId: number) {
     if (this.socket?.connected) {
       this.socket.emit('typing:stop', conversationId);
+      this.socket.emit('typing', { conversationId, isTyping: false });
     }
   }
 
