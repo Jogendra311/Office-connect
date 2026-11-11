@@ -2,7 +2,6 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../../app/hooks.ts';
 import { setReplyingToMessage } from '../../features/chat/chatSlice.ts';
@@ -19,6 +18,8 @@ import {
   File,
   Loader2,
   CheckCircle,
+  Mic,
+  MicOff,
 } from 'lucide-react';
 
 interface MessageComposerProps {
@@ -27,6 +28,12 @@ interface MessageComposerProps {
 
 const EMOJI_LIST = ['😀', '😂', '👍', '❤️', '🎉', '🔥', '🚀', '👏', '🙌', '💡', '✅', '🤝'];
 
+// Speech Recognition Browser API
+const SpeechRecognitionAPI =
+  typeof window !== 'undefined'
+    ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    : null;
+
 export const MessageComposer: React.FC<MessageComposerProps> = ({ conversationId }) => {
   const dispatch = useAppDispatch();
   const replyingTo = useAppSelector((state) => state.chat.replyingToMessage);
@@ -34,10 +41,14 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({ conversationId
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [speechError, setSpeechError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const baseContentRef = useRef<string>('');
 
   const [sendMessage, { isLoading: isSending }] = useSendMessageMutation();
   const [uploadAttachment, { isLoading: isUploading }] = useUploadAttachmentMutation();
@@ -45,6 +56,31 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({ conversationId
   useEffect(() => {
     textareaRef.current?.focus();
   }, [conversationId, replyingTo]);
+
+  // Clean up speech recognition on conversation switch or unmount
+  useEffect(() => {
+    if (isListening && recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (_e) {
+        // ignore
+      }
+      setIsListening(false);
+    }
+  }, [conversationId]);
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (_e) {
+          // ignore
+        }
+        recognitionRef.current = null;
+      }
+    };
+  }, []);
 
   const handleTyping = () => {
     socketService.startTyping(conversationId);
@@ -58,9 +94,108 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({ conversationId
     }, 2500);
   };
 
+  const toggleListening = () => {
+    if (!SpeechRecognitionAPI) {
+      setSpeechError(
+        'Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.'
+      );
+      return;
+    }
+
+    if (isListening) {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (_e) {
+          // ignore
+        }
+      }
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      setSpeechError(null);
+      baseContentRef.current = content;
+
+      const recognition = new SpeechRecognitionAPI();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = navigator.language || 'en-US';
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const item = event.results[i];
+          if (item.isFinal) {
+            finalTranscript += item[0].transcript;
+          } else {
+            interimTranscript += item[0].transcript;
+          }
+        }
+
+        const currentSpeech = (finalTranscript + interimTranscript).trim();
+        if (currentSpeech) {
+          const base = baseContentRef.current.trim();
+          const separator = base ? ' ' : '';
+          const newText = base + separator + currentSpeech;
+          setContent(newText);
+          handleTyping();
+
+          if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${Math.min(
+              textareaRef.current.scrollHeight,
+              120
+            )}px`;
+          }
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn('Speech recognition event error:', event.error);
+        if (event.error === 'not-allowed') {
+          setSpeechError('Microphone access was denied. Please allow microphone permissions.');
+        } else if (event.error === 'no-speech') {
+          // User paused speaking; continue listening
+          return;
+        } else {
+          setSpeechError(`Speech recognition error: ${event.error}`);
+        }
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err: any) {
+      console.error('Failed to start speech recognition:', err);
+      setSpeechError(err.message || 'Failed to initialize microphone');
+      setIsListening(false);
+    }
+  };
+
   const handleSend = async () => {
     const trimmed = content.trim();
     if (!trimmed && !selectedFile) return;
+
+    if (isListening && recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (_e) {
+        // ignore
+      }
+      setIsListening(false);
+    }
 
     socketService.stopTyping(conversationId);
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
@@ -184,6 +319,43 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({ conversationId
         </div>
       )}
 
+      {/* Speech Recognition Error Banner */}
+      {speechError && (
+        <div className="mb-2 px-3 py-1.5 bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 text-amber-700 dark:text-amber-300 rounded-2xl text-xs flex items-center justify-between backdrop-blur-md">
+          <span>{speechError}</span>
+          <button onClick={() => setSpeechError(null)}>
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Real-time Speech-to-Text Listening Banner */}
+      {isListening && (
+        <div className="flex items-center justify-between mb-2 px-3.5 py-2 bg-rose-500/10 dark:bg-rose-500/15 border border-rose-500/30 rounded-2xl text-xs backdrop-blur-md">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-2.5 w-2.5 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+            </span>
+            <span className="font-semibold text-rose-600 dark:text-rose-400">
+              Listening... Speak now to transcribe into chat box
+            </span>
+            <div className="flex items-center gap-0.5 ml-1">
+              <span className="w-1 h-3.5 bg-rose-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+              <span className="w-1 h-4.5 bg-rose-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+              <span className="w-1 h-2.5 bg-rose-500 rounded-full animate-bounce" />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={toggleListening}
+            className="px-2.5 py-1 text-[11px] font-bold bg-rose-500 hover:bg-rose-600 text-white rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer"
+          >
+            Done
+          </button>
+        </div>
+      )}
+
       {/* Emoji Picker Popup */}
       {showEmojiPicker && (
         <div className="absolute bottom-full mb-3 left-4 p-2.5 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-white/60 dark:border-white/10 rounded-2xl shadow-2xl grid grid-cols-6 gap-2 z-30">
@@ -228,6 +400,26 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({ conversationId
           aria-label="Insert Emoji"
         >
           <Smile className="w-4 h-4" />
+        </button>
+
+        <button
+          type="button"
+          onClick={toggleListening}
+          className={`p-2 rounded-full transition-all cursor-pointer ${
+            isListening
+              ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30 animate-pulse scale-105'
+              : 'text-slate-400 hover:text-rose-500 hover:bg-white/50 dark:hover:bg-white/[0.08]'
+          }`}
+          title={
+            !SpeechRecognitionAPI
+              ? 'Speech-to-text not supported in this browser'
+              : isListening
+              ? 'Stop speech-to-text'
+              : 'Speech to text (Voice dictation)'
+          }
+          aria-label={isListening ? 'Stop listening' : 'Start speech to text'}
+        >
+          {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
         </button>
 
         <textarea
